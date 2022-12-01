@@ -23,7 +23,8 @@ class ALSConfig:
         Z3 = 1
         Boolector = 2
 
-    def __init__(self, cut_size, solver, timeout):
+    def __init__(self, lut_cache, cut_size, solver, timeout):
+        self.lut_cache = lut_cache
         self.cut_size = cut_size
         solvers = {"z3": ALSConfig.Solver.Z3, "Z3": ALSConfig.Solver.Z3, "boolector": ALSConfig.Solver.Boolector, "btor": ALSConfig.Solver.Boolector}
         if solver not in solvers:
