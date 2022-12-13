@@ -4,3 +4,4 @@ build/
 dist/
 
 pyalslib.egg-info/
+virtualenv

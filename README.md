@@ -17,7 +17,13 @@ Please, cite us!
 This repo hosts the core-library only. Take a look at the pyALS framework [here](https://github.com/SalvatoreBarone/pyALS).
 
 ## Installing the module
-You can install this module by simply running the provided ```setup.py``` script as follows:
+You can install this module using ```pip```.
+
 ```bash
-# python3 setup.py install
+pip install pyamosa
+```
+
+If you want to install it manually, you can do it by simply running the provided ```setup.py``` script as follows:
+```bash
+$ python3 setup.py install
 ```
