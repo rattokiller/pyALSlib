@@ -14,7 +14,7 @@ You should have received a copy of the GNU General Public License along with
 RMEncoder; if not, write to the Free Software Foundation, Inc., 51 Franklin
 Street, Fifth Floor, Boston, MA 02110-1301, USA.
 """
-import os
+import os, copy
 from pyosys import libyosys as ys
 from .Utility import *
 
@@ -39,6 +39,16 @@ class YosysHelper:
         self.module_id = None
         self.PIs = None
         self.POs = None
+
+    def __deepcopy__(self, memo = None):
+        helper = YosysHelper()
+        helper.design = ys.Design()
+        helper.sources = copy.deepcopy(self.sources)
+        helper.top_module = copy.deepcopy(self.top_module)
+        helper.module_id = copy.deepcopy(self.module_id)
+        helper.PIs = copy.deepcopy(self.PIs)
+        helper.POs = copy.deepcopy(self.POs)
+        return helper
 
     def load_ghdl(self):
         ys.run_pass("plugin -i ghdl", self.design)
