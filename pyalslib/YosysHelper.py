@@ -129,7 +129,7 @@ class YosysHelper:
                     spec = cell.parameters[ys.IdString("\LUT")].as_string()[::-1]
                     if negate(spec) not in luts_set and spec not in luts_set:
                         luts_set.add(spec)
-        return list(luts_set)
+        return list(sorted(luts_set))
 
     def to_aig(self, configuration):
         for module in self.design.selected_whole_modules_warn():

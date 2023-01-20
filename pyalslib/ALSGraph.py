@@ -31,6 +31,7 @@ class ALSGraph:
         if design:
             self.__graph = ig.Graph(directed=True)
             self.__graph_from_design(design)
+            self.__graph.topological_sorting()
         else:
             self.__graph = None
 
@@ -121,6 +122,12 @@ class ALSGraph:
         layout = self.__graph.layout("sugiyama")
         layout.rotate(270)
         ig.plot(self.__graph, layout = layout, bbox=(2000, 2000), margin=120, hovermode='closest', vertex_label_dist = 2.5, target = file_name)
+
+    def write(self, file_name):
+        print(f"Graph written to {file_name}")
+
+    def read(self, file_name):
+        print(f"Graph read from {file_name}")
 
     def __graph_from_design(self, design):
         driver_of = {}
