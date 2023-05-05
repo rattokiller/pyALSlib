@@ -17,7 +17,7 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA.
 import copy, igraph as ig
 from pyosys import libyosys as ys
 from enum import Enum
-
+import time
 
 class ALSGraph:
     class VertexType(Enum):
@@ -32,12 +32,19 @@ class ALSGraph:
             self.__graph = ig.Graph(directed=True)
             self.__graph_from_design(design)
             self.__graph.topological_sorting()
+
+            type(self).cell_values_base = {v: False for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.CONSTANT_ZERO} | {v: True for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.CONSTANT_ONE}
+        
         else:
             self.__graph = None
+            type(self).cell_values_base is None
 
     def __deepcopy__(self, memo = None):
         graph = ALSGraph()
         graph.__graph = copy.deepcopy(self.__graph)
+
+        type(self).cell_values_base = {v: False for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.CONSTANT_ZERO} | {v: True for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.CONSTANT_ONE}
+        
         return graph
 
     def get_pi(self):
@@ -82,23 +89,41 @@ class ALSGraph:
         return pi_weights
 
     def evaluate(self, inputs, lut_io_info, configuration = None):
+        #rendere cell_values una classe e ridurre il piu possibile l' uso dei dizionari
+
+        #i primi due cicli for dovrebbero dare sempre lo stesso output poiche dipendo dal grafo iniziale
         cell_values = {c: False for c in [v for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.CONSTANT_ZERO]} | {c: True for c in [v for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.CONSTANT_ONE]} | {p : inputs[p["name"]] for p in [v for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.PRIMARY_INPUT]}
+        
+        #per ogni cella (doppio for inutile)
+        
         for cell in [v for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.CELL]:
             _, lut_io_info = self.__evaluate_cell_output(cell_values, cell, lut_io_info, configuration)
+
         return {o["name"]: cell_values[o.neighbors(mode="in")[0]] for o in [v for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.PRIMARY_OUTPUT]}, lut_io_info
 
+    
     def __evaluate_cell_output(self, cell_values, cell, lut_io_info, configuration):
         if cell not in cell_values:
+
             input_values = []
             input_names = []
-            for n in cell["in"]:
-                input_names.append(self.__graph.vs[n]["name"])
+
+            for n in cell["in"]:#per tutte le celle in ingresso al nodo
+                input_names.append(self.__graph.vs[n]["name"])#a cosa serve?
                 if self.__graph.vs[n] in cell_values:
                     input_values.append(cell_values[self.__graph.vs[n]])
-                else:
+                else:#non va bene per niente
                     o, lut_io_info = self.__evaluate_cell_output(cell_values, self.__graph.vs[n], lut_io_info, configuration)
                     input_values.append(o)
+
+            #Fare un unico ciclo for (ora sono 2)
             out_idx = sum(2 ** i if input_values[i] else 0 for i in range(len(input_values)))
+
+            out_idx = 0
+            for i in range(len(input_values)):
+                if input_values[i]:
+                    out_idx += 2 ** i
+
             if configuration is None:
                 cell_values[cell] = cell["spec"][out_idx] == "1"
                 if cell["name"] not in lut_io_info:
@@ -112,6 +137,64 @@ class ALSGraph:
                 cell_values[cell] = cell_conf["axspec"][out_idx] == "1"
             #print("name: {name} Spec: {spec}, Dist.: {dist}, AxSpec: {axspec}, Inputs: {inputs} = {I} (Index: {i}) -> Output: {o} ({O}) AxOutput: {axo})".format(name = cell["name"], spec = cell_spec, dist = dist, axspec = ax_cell_spec, inputs = input_names, I = input_values, i = out_idx, o=out_value, O = cell_values[cell], axo =  ax_out_value))
         return cell_values[cell], lut_io_info
+
+
+    def evaluate_v2(self, inputs, lut_io_info, configuration = None):
+        #rendere cell_values una classe e ridurre il piu possibile l' uso dei dizionari
+
+        #i primi due cicli for dovrebbero dare sempre lo stesso output poiche dipendo dal grafo iniziale
+        #st =  time.time()
+        #type(self).cell_values_base = {v: False for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.CONSTANT_ZERO} | {v: True for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.CONSTANT_ONE}
+        
+        cell_values = self.cell_values_base | {v : inputs[v["name"]] for v in self.__graph.vs if v["type"] == ALSGraph.VertexType.PRIMARY_INPUT}
+        
+        #print(f"Init time: {time.time() - st}")
+          
+        #st = time.time()
+        for v in self.__graph.vs:
+            if v["type"] == ALSGraph.VertexType.CELL:
+                _, lut_io_info = self.__evaluate_cell_output_v2(cell_values, v, lut_io_info, configuration)
+
+        #print(f"Eval time: {time.time() - st}")
+
+        return {o["name"]: cell_values[o.neighbors(mode="in")[0]] for o in self.__graph.vs if o["type"] == ALSGraph.VertexType.PRIMARY_OUTPUT}, lut_io_info
+        
+    def __evaluate_cell_output_v2(self, cell_values, cell, lut_io_info, configuration):
+        
+        #print(f"size cell_values: {len(cell_values)} and size of graph: {len(self.__graph.vs)}")
+        if cell not in cell_values:
+
+            input_values = []
+
+            for n in cell["in"]:#per tutte le celle in ingresso al nodo
+                if self.__graph.vs[n] in cell_values:
+                    input_values.append(cell_values[self.__graph.vs[n]])
+                else:
+                    o, lut_io_info = self.__evaluate_cell_output_v2(cell_values, self.__graph.vs[n], lut_io_info, configuration)
+                    input_values.append(o)
+
+            #Fare un unico ciclo for (ora sono 2)
+            #out_idx = sum(2 ** i if input_values[i] else 0 for i in range(len(input_values)))
+
+            out_idx = 0
+            for i in range(len(input_values)):
+                if input_values[i]:
+                    out_idx += 2 ** i
+
+            if configuration is None:
+                cell_values[cell] = cell["spec"][out_idx] == "1"
+                if cell["name"] not in lut_io_info:
+                    lut_io_info[cell["name"]] = {"spec": cell["spec"], "freq" : [0] * len(cell["spec"])}       
+                lut_io_info[cell["name"]]["freq"][out_idx] += 1
+            else:
+                cell_conf = configuration[cell["name"]]
+                if cell["name"] not in lut_io_info:
+                    lut_io_info[cell["name"]] = {"spec": cell_conf["axspec"], "freq" : [0] * len(cell["spec"])}       
+                lut_io_info[cell["name"]]["freq"][out_idx] += 1
+                cell_values[cell] = cell_conf["axspec"][out_idx] == "1"
+            #print("name: {name} Spec: {spec}, Dist.: {dist}, AxSpec: {axspec}, Inputs: {inputs} = {I} (Index: {i}) -> Output: {o} ({O}) AxOutput: {axo})".format(name = cell["name"], spec = cell_spec, dist = dist, axspec = ax_cell_spec, inputs = input_names, I = input_values, i = out_idx, o=out_value, O = cell_values[cell], axo =  ax_out_value))
+        return cell_values[cell], lut_io_info
+
 
     def plot(self):
         layout = self.__graph.layout("sugiyama")
